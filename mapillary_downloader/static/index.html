@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mapillary Area Downloader</title>
+  <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="/static/vendor/leaflet-draw/leaflet.draw.css">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <aside id="sidebar">
+    <header>
+      <h1>Mapillary Area Downloader</h1>
+      <p class="muted">Download all street-level images with GPS positions in an area.</p>
+    </header>
+
+    <section>
+      <h2>1. Area</h2>
+      <form id="place-form" class="row">
+        <input id="place" type="search" placeholder="Search a place, e.g. Freiburg im Breisgau">
+        <button type="submit">Go</button>
+      </form>
+      <p class="muted small">Draw a rectangle with the <b>&#9632;</b> tool on the map, or:</p>
+      <div class="row">
+        <button type="button" id="use-view">Use visible map area</button>
+        <button type="button" id="clear-area" class="secondary">Clear</button>
+      </div>
+      <div id="area-info" class="info muted">No area selected.</div>
+    </section>
+
+    <section>
+      <h2>2. Mapillary access token</h2>
+      <input id="token" type="password" autocomplete="off" placeholder="MLY|...">
+      <label class="check"><input id="remember-token" type="checkbox"> Remember in this browser</label>
+      <p class="muted small" id="token-help">
+        Free: log in at mapillary.com &rarr; Dashboard &rarr; Developers &rarr; Register application, then copy the <i>Client Token</i>.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. Options</h2>
+      <div class="grid">
+        <label>Image size
+          <select id="image-size">
+            <option value="256">256 px wide</option>
+            <option value="1024" selected>1024 px wide</option>
+            <option value="2048">2048 px wide</option>
+            <option value="original">Original</option>
+          </select>
+        </label>
+        <label>Folder name
+          <input id="name" type="text" placeholder="auto">
+        </label>
+        <label>Captured from
+          <input id="start-date" type="date">
+        </label>
+        <label>Captured until
+          <input id="end-date" type="date">
+        </label>
+        <label>Min. distance between images (m)
+          <input id="min-distance" type="number" min="0" step="1" placeholder="0 = keep all">
+        </label>
+        <label>Max. number of images
+          <input id="max-images" type="number" min="1" step="1" placeholder="no limit">
+        </label>
+      </div>
+      <label class="check"><input id="include-pano" type="checkbox"> Include 360&deg; panoramas</label>
+    </section>
+
+    <section class="actions">
+      <button type="button" id="count-btn" class="secondary">Count images</button>
+      <button type="button" id="download-btn">Download</button>
+    </section>
+
+    <section id="job" hidden>
+      <div class="job-head">
+        <h2>Job <span id="job-name"></span></h2>
+        <span id="job-status" class="badge"></span>
+      </div>
+      <div id="phase-label" class="small muted"></div>
+      <progress id="progress" max="1" value="0"></progress>
+      <dl id="stats"></dl>
+      <div id="job-error" class="error" hidden></div>
+      <div id="job-output" class="small muted"></div>
+      <div class="row">
+        <button type="button" id="cancel-btn" class="danger">Cancel</button>
+      </div>
+      <details>
+        <summary>Log</summary>
+        <pre id="log"></pre>
+      </details>
+    </section>
+  </aside>
+
+  <main id="map"></main>
+
+  <script src="/static/vendor/leaflet/leaflet.js"></script>
+  <script src="/static/vendor/leaflet-draw/leaflet.draw.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>
