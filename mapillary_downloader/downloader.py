@@ -93,11 +93,14 @@ class JobConfig:
         for name in ("start_date", "end_date"):
             value = getattr(self, name)
             if value:
-                date.fromisoformat(value)
+                # Normalise to YYYY-MM-DD: fromisoformat() also accepts e.g.
+                # "20240101", which would break the API query and the
+                # string comparison below.
+                setattr(self, name, date.fromisoformat(value).isoformat())
         if self.start_date and self.end_date and self.start_date > self.end_date:
             raise ValueError("start_date must not be after end_date")
-        if self.min_distance_m < 0:
-            raise ValueError("min_distance_m must be >= 0")
+        if not math.isfinite(self.min_distance_m) or self.min_distance_m < 0:
+            raise ValueError("min_distance_m must be a number >= 0")
         if self.max_images is not None and self.max_images < 1:
             raise ValueError("max_images must be >= 1")
         if count_cells(self.bbox, INITIAL_CELL_DEG) > MAX_INITIAL_CELLS:
@@ -184,8 +187,14 @@ def _parse_captured_at(value) -> int | None:
     try:
         return int(value)
     except ValueError:
+        pass
+    try:
         dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-        return int(dt.timestamp() * 1000)
+    except ValueError:
+        return None  # one odd timestamp must not abort the whole search
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return int(dt.timestamp() * 1000)
 
 
 def _iso(ms: int | None) -> str:
@@ -402,8 +411,9 @@ class Job:
                         try:
                             items = fut.result()
                         except ApiError as exc:
-                            # Large/dense cells sometimes time out server-side.
-                            if exc.status and exc.status >= 500 and _can_split(cell):
+                            # Large/dense cells sometimes time out (server- or client-side).
+                            server_error = exc.status is not None and exc.status >= 500
+                            if (server_error or exc.timeout) and _can_split(cell):
                                 split = True
                                 items = []
                             else:
@@ -530,7 +540,7 @@ class Job:
             try:
                 resp = self.http.get(url, timeout=60)
             except requests.RequestException:
-                time.sleep(self._retry_sleep * (attempt + 1))
+                self._cancel.wait(self._retry_sleep * (attempt + 1))
                 continue
             if resp.status_code == 200:
                 dest = images_dir / f"{image_id}.jpg"
@@ -541,7 +551,7 @@ class Job:
             if resp.status_code in (403, 404, 410):
                 url = None
             elif resp.status_code == 429 or resp.status_code >= 500:
-                time.sleep(self._retry_sleep * (attempt + 1))
+                self._cancel.wait(self._retry_sleep * (attempt + 1))
             else:
                 raise RuntimeError(f"HTTP {resp.status_code}")
         raise RuntimeError("giving up after retries")

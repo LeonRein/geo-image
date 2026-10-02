@@ -18,14 +18,13 @@ position, compass heading and capture time.
 
 ### Setup
 
-Requires Python 3.10+.
+Uses [uv](https://docs.astral.sh/uv/) (installs a suitable Python and all dependencies automatically):
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-python -m mapillary_downloader     # opens http://localhost:8000
+uv run mapillary-downloader        # opens http://localhost:8000
 ```
+
+`uv run python -m mapillary_downloader` works too.
 
 Options: `--port 8000`, `--output downloads` (target folder), `--host 0.0.0.0`
 (only if you want to reach it from other machines – there is no login), `--no-browser`.
@@ -38,7 +37,7 @@ The API is free but needs a token:
 2. **Register application** (any name/URL, read access is enough).
 3. Copy the **Client Token** (starts with `MLY|`).
 
-Paste it into the web UI, or start the server with `MAPILLARY_TOKEN=MLY|... python -m mapillary_downloader`
+Paste it into the web UI, or start the server with `MAPILLARY_TOKEN='MLY|...' uv run mapillary-downloader`
 so you don't have to enter it every time.
 
 ### Using the UI
@@ -102,8 +101,7 @@ Faces and licence plates are blurred by Mapillary.
 ### Development
 
 ```bash
-pip install -r requirements-dev.txt
-pytest
+uv run pytest
 ```
 
 The tests run against a local fake of the Mapillary API (`tests/fake_mapillary.py`), so no token or network is needed.

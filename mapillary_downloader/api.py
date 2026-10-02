@@ -48,9 +48,10 @@ METADATA_FIELDS = [
 
 
 class ApiError(Exception):
-    def __init__(self, message: str, status: int | None = None):
+    def __init__(self, message: str, status: int | None = None, timeout: bool = False):
         super().__init__(message)
         self.status = status
+        self.timeout = timeout
 
 
 class MapillaryClient:
@@ -76,20 +77,27 @@ class MapillaryClient:
         while True:
             try:
                 resp = self.session.get(url, params=params, timeout=self.timeout)
+            except requests.Timeout as exc:
+                error = ApiError(f"Request timed out: {exc}", timeout=True)
             except requests.RequestException as exc:
                 error = ApiError(f"Network error: {exc}")
             else:
                 if resp.status_code == 200:
-                    return resp.json()
-                error = ApiError(_error_message(resp), resp.status_code)
-                if resp.status_code in (401, 403):
+                    data = _json_or_none(resp)
+                    if isinstance(data, dict):
+                        return data
+                    # Truncated or garbled body (e.g. a proxy error page) - retry.
+                    error = ApiError("Invalid JSON response from Mapillary", resp.status_code)
+                elif resp.status_code in (401, 403):
                     raise ApiError(
                         "Mapillary rejected the access token "
                         f"(HTTP {resp.status_code}): {_error_message(resp)}",
                         resp.status_code,
                     )
-                if resp.status_code != 429 and resp.status_code < 500:
-                    raise error
+                else:
+                    error = ApiError(_error_message(resp), resp.status_code)
+                    if resp.status_code != 429 and resp.status_code < 500:
+                        raise error
             attempt += 1
             if attempt > retries:
                 raise error
@@ -123,12 +131,18 @@ class MapillaryClient:
         )
 
 
-def _error_message(resp: requests.Response) -> str:
+def _json_or_none(resp: requests.Response):
     try:
-        body = resp.json()
-        err = body.get("error", body)
-        if isinstance(err, dict):
-            return str(err.get("message") or err)
-        return str(err)
+        return resp.json()
     except ValueError:
+        return None
+
+
+def _error_message(resp: requests.Response) -> str:
+    body = _json_or_none(resp)
+    if body is None:
         return resp.text[:200] or resp.reason or f"HTTP {resp.status_code}"
+    err = body.get("error", body) if isinstance(body, dict) else body
+    if isinstance(err, dict):
+        return str(err.get("message") or err)
+    return str(err)

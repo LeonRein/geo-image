@@ -1,0 +1,29 @@
+[project]
+name = "geo-image"
+version = "0.1.0"
+description = "Tools for building a dataset of geotagged street-level images (Mapillary area downloader)."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "flask>=3.0",
+    "requests>=2.31",
+]
+
+[project.scripts]
+mapillary-downloader = "mapillary_downloader.__main__:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+]
+
+[build-system]
+requires = ["uv_build>=0.8.17,<0.9"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "mapillary_downloader"
+module-root = ""
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

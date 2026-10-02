@@ -1,6 +1,7 @@
 import csv
 import json
 import threading
+from pathlib import Path
 
 import pytest
 
@@ -80,6 +81,14 @@ def test_normalize_image_falls_back_to_original_geometry():
     assert rec["heading"] == 91.5
     assert rec["captured_at"] == "2023-11-14T22:13:20.000Z"
     assert normalize_image({"id": "1"}, "thumb_1024_url") is None
+    bad_time = make_image(6, 7.8, 48.0, captured_at="not a date")
+    assert normalize_image(bad_time, "thumb_1024_url")["captured_at_ms"] is None
+
+
+def test_dates_are_normalised():
+    config = JobConfig(bbox=BBOX, output_dir=Path("x"), start_date="20240101", end_date="2024-01-31")
+    config.validate()
+    assert config.start_date == "2024-01-01"
 
 
 # ---------------------------------------------------------------- jobs
@@ -150,6 +159,16 @@ def test_server_errors_on_large_cells_trigger_split(tmp_path):
     assert job.stats.found == 30
 
 
+def test_client_timeouts_on_large_cells_trigger_split(tmp_path):
+    with FakeMapillary(grid_images(30), slow_wider_than=0.006) as fake:
+        config = JobConfig(bbox=BBOX, output_dir=tmp_path / "out", dry_run=True)
+        client = MapillaryClient(TOKEN, base_url=fake.base_url, timeout=0.2, sleep=lambda s: None)
+        job = Job(config=config, client=client)
+        job.run()
+    assert job.status == "done", job.error
+    assert job.stats.found == 30
+
+
 def test_filters_and_limits(tmp_path):
     images = grid_images(10)
     images[0]["camera_type"] = "spherical"
@@ -202,6 +221,7 @@ def test_cancel_stops_job(tmp_path):
         {"start_date": "2024-02-30"},
         {"start_date": "2024-02-01", "end_date": "2024-01-01"},
         {"bbox": (-180, -80, 180, 80)},
+        {"min_distance_m": float("inf")},
     ],
 )
 def test_config_validation(kw, tmp_path):

@@ -68,6 +68,10 @@ def test_validation_errors(client):
     res = client.post("/api/jobs", json={"bbox": list(BBOX), "token": TOKEN, "image_size": "5"})
     assert res.status_code == 400
     assert client.get("/api/jobs/nope").status_code == 404
+    res = client.post("/api/jobs", json=[1, 2])
+    assert res.status_code == 400 and res.get_json()["error"]
+    res = client.delete("/api/jobs")
+    assert res.status_code == 405 and res.get_json()["error"]  # JSON, not an HTML page
 
 
 def test_only_one_job_at_a_time(client, fake):

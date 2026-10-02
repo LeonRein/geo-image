@@ -63,7 +63,8 @@ function updateAreaInfo() {
   const midLat = ((s + n) / 2) * Math.PI / 180;
   const widthKm = (e - w) * 111.32 * Math.cos(midLat);
   const heightKm = (n - s) * 110.54;
-  const cells = Math.ceil((e - w) / CELL_DEG) * Math.ceil((n - s) / CELL_DEG);
+  // Same formula as _grid_shape() in downloader.py (the epsilon absorbs float error).
+  const cells = Math.max(1, Math.ceil((e - w) / CELL_DEG - 1e-9)) * Math.max(1, Math.ceil((n - s) / CELL_DEG - 1e-9));
   el.innerHTML = "";
   el.append(
     `West ${w}, South ${s}, East ${e}, North ${n}`,
@@ -144,14 +145,20 @@ async function startJob(dryRun) {
     max_images: Number($("max-images").value) || null,
     dry_run: dryRun,
   };
-  const res = await fetch("/api/jobs", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json();
+  let res, data;
+  try {
+    res = await fetch("/api/jobs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    data = await res.json().catch(() => ({}));
+  } catch (err) {
+    alert("Could not reach the downloader server: " + err);
+    return;
+  }
   if (!res.ok) {
-    alert(data.error || "Could not start job");
+    alert(data.error || `Could not start job (HTTP ${res.status})`);
     return;
   }
   pointsLayer.clearLayers();
@@ -164,16 +171,30 @@ $("count-btn").addEventListener("click", () => startJob(true));
 $("download-btn").addEventListener("click", () => startJob(false));
 $("cancel-btn").addEventListener("click", async () => {
   if (!currentJob) return;
-  await fetch(`/api/jobs/${currentJob.id}/cancel`, { method: "POST" });
+  try {
+    await fetch(`/api/jobs/${currentJob.id}/cancel`, { method: "POST" });
+  } catch (err) {
+    alert("Cancel failed: " + err);
+  }
   poll();
 });
 
 async function poll() {
   clearTimeout(pollTimer);
   if (!currentJob) return;
-  const res = await fetch(`/api/jobs/${currentJob.id}`);
-  if (!res.ok) return;
-  const job = await res.json();
+  const jobId = currentJob.id;
+  let job;
+  try {
+    const res = await fetch(`/api/jobs/${jobId}`);
+    if (!res.ok) return;
+    job = await res.json();
+  } catch {
+    // Server briefly unreachable - keep polling instead of freezing the UI.
+    clearTimeout(pollTimer);
+    pollTimer = setTimeout(poll, 3000);
+    return;
+  }
+  if (!currentJob || currentJob.id !== jobId) return; // a newer job was started meanwhile
   const wasActive = ACTIVE.has(currentJob.status);
   showJob(job);
 
@@ -184,6 +205,9 @@ async function poll() {
     lastPointsLoad = now;
     loadPoints(job);
   }
+  // Clear again: another poll() (e.g. from the cancel button) may have run while
+  // this one awaited the fetch - otherwise two polling loops would keep running.
+  clearTimeout(pollTimer);
   if (isActive) pollTimer = setTimeout(poll, 1000);
 }
 

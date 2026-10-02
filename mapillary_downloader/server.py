@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Callable
 
 from flask import Flask, abort, jsonify, request, send_from_directory
+from werkzeug.exceptions import HTTPException
 
 from .api import MapillaryClient
 from .downloader import Job, JobConfig
@@ -58,11 +59,10 @@ def create_app(
     app = Flask(__name__, static_folder=str(STATIC_DIR), static_url_path="/static")
     app.config["manager"] = manager
 
-    @app.errorhandler(400)
-    @app.errorhandler(404)
-    @app.errorhandler(409)
+    @app.errorhandler(HTTPException)
     def json_error(err):
-        return jsonify(error=getattr(err, "description", str(err))), err.code
+        # The UI always expects JSON, also for 405/500 etc.
+        return jsonify(error=err.description), err.code
 
     @app.get("/")
     def index():
@@ -79,7 +79,9 @@ def create_app(
 
     @app.post("/api/jobs")
     def create_job():
-        body = request.get_json(silent=True) or {}
+        body = request.get_json(silent=True)
+        if not isinstance(body, dict):
+            abort(400, "Expected a JSON object.")
         token = (body.get("token") or "").strip() or default_token
         if not token:
             abort(400, "A Mapillary access token is required.")

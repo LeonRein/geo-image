@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
@@ -33,9 +34,10 @@ def make_image(image_id, lon, lat, captured_at=1_700_000_000_000, camera_type="p
 
 
 class FakeMapillary:
-    def __init__(self, images, fail_wider_than=None, expired_ids=()):
+    def __init__(self, images, fail_wider_than=None, slow_wider_than=None, expired_ids=()):
         self.images = {img["id"]: img for img in images}
         self.fail_wider_than = fail_wider_than
+        self.slow_wider_than = slow_wider_than
         self.expired_ids = set(expired_ids)
         self.search_calls = []
         self.downloads = []
@@ -94,6 +96,8 @@ class FakeMapillary:
         self.search_calls.append((w, s, e, n))
         if self.fail_wider_than and (e - w) > self.fail_wider_than:
             return handler._json(500, {"error": {"message": "Please reduce the amount of data"}})
+        if self.slow_wider_than and (e - w) > self.slow_wider_than:
+            time.sleep(0.5)  # longer than the client timeout used in the tests
         fields = qs["fields"].split(",")
         limit = int(qs.get("limit", 2000))
         hits = []

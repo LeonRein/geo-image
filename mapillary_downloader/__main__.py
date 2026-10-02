@@ -15,7 +15,13 @@ def main() -> None:
     args = parser.parse_args()
 
     app = create_app(output_root=args.output)
-    url = f"http://{'localhost' if args.host in ('127.0.0.1', '0.0.0.0') else args.host}:{args.port}/"
+    if args.host in ("127.0.0.1", "0.0.0.0", "::", "::1", ""):
+        display_host = "localhost"
+    elif ":" in args.host:
+        display_host = f"[{args.host}]"  # IPv6 literal
+    else:
+        display_host = args.host
+    url = f"http://{display_host}:{args.port}/"
     print(f"Mapillary downloader running at {url}  (Ctrl+C to stop)")
     if not args.no_browser:
         webbrowser.open(url)
